@@ -354,7 +354,8 @@ def get_filepaths(rootdir=None, file_type='all', flat=True):
 def prepare_and_sortphotos(
     source_dir=r"./Pictures", 
     destination_dir=r"./Pictures/ArrangedPictures",
-    extension_to_fix='.HEIC'):
+    extension_to_fix='.HEIC',
+    rename=True):
     """This is a simple wrapper function for sortphotos library. Prepares images by 
     converting .HEIC extensions to jpg if necessary. 
     
@@ -375,11 +376,13 @@ def prepare_and_sortphotos(
             os.rename(i, os.path.join(os.path.splitext(i)[0]+".jpg"))
         else:
             pass
-
-    subprocess.cal(
-        "sortphotos {} {} --rename=%Y_%m_%d_%H%M".format(source_dir, destination_dir)
-    )
-
+    if rename:
+        subprocess.call(
+            "sortphotos {} {} --rename=%Y_%m_%d_%H%M".format(source_dir, destination_dir)
+        )
+    else:
+        subprocess.call("sortphotos {} {}".format(source_dir, destination_dir))
+        
 # ###################################### Section 4 ##################################### # ##################################### #####################################
 
 
