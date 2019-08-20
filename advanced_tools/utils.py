@@ -466,34 +466,54 @@ def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
 
 
 def get_hierarchy_as_list(
-        main_df, tag_list,
-        exclude_list=None,
-        sub_level=None,
-        tag_column='Functional Location',
-        parent_column='Superior functional location'
-        ):
+    main_df, tag_list,
+    lookup_for='children',
+    exclude_list=None,
+    sub_level=None,
+    tag_column='Functional Location',
+    parent_column='Superior functional location'
+    ):
+    r"""
+    Retrieve parent tags or children tags as a dataframe for a given tag lists
+
+    Arguments:
+        main_df {pandas.Dataframe} -- Tag
+        tag_list {list} -- Reference Tag list
+
+    Keyword Arguments:
+        lookup_for {str} -- Either 'children' or 'parents' at a time (default: {'parents'})
+        exclude_list {list} -- List of tags that will be excluded from final output (default: {None})
+        sub_level {int} -- Level of parent or children tags (default: {None})
+        tag_column {str} -- Name of the tag column in main_df (default: {'Functional Location'})
+        parent_column {str} -- Name of the parent tag column in main_df (default: {'Superior functional location'})
+
+    Returns:
+        [pandas.Dataframe] -- [Output of desired list of parents or children]
     """
-    Retrieve all the sublevel tags for given taglist using Tag and Parent Tag Field.
-    :param main_df: Entire database, i.e. SAP Export
-    :param tag_list: Initial tag list to start looking into hierarchy
-    :param filter_out_list: Tag list to exclude at the end
-    :param tag_column: Tag Column Field Name, i.e. 'Functional Location'
-    :param parent_column: Parent tag Column Field Name, i.e.'Superior functional location'
-    """
+    if lookup_for == 'children':
+        tag_field=tag_column
+        parent_field=parent_column
+    elif lookup_for == 'parents':
+        tag_field=parent_column
+        parent_field=tag_column
+    else:
+        raise (AttributeError("lookup_for keyword argument must be either 'parents' or 'children'"))
+
+
     # Extracting initial dataframe as sublevel=1 from df['sap'] with initial taglist.
     df_out = main_df[main_df[tag_column].isin(tag_list)].copy()
     df_out['Sublevel'] = 0
-    tags = df_out[tag_column].tolist()
+    tags = df_out[tag_field].tolist()
 
     if sub_level:
         ctr = 1
         print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
         # Extracting all upto given sublevel starting from the initial taglist
         while ctr <= sub_level:
-            df_temp = main_df[main_df[parent_column].isin(tags)]
+            df_temp = main_df[main_df[parent_field].isin(tags)]
             df_temp['Sublevel'] = ctr
             df_out = df_out.append(df_temp)
-            tags = df_temp[tag_column].tolist()
+            tags = df_temp[tag_field].tolist()
             print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
             ctr += 1
     else:
@@ -501,22 +521,21 @@ def get_hierarchy_as_list(
         print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
         # Extracting all the sublevel starting from the initial taglist
         while len(tags) > 0:
-            df_temp = main_df[main_df[parent_column].isin(tags)]
+            df_temp = main_df[main_df[parent_field].isin(tags)]
             df_temp['Sublevel'] = ctr
             df_out = df_out.append(df_temp)
-            tags = df_temp[tag_column].tolist()
+            tags = df_temp[tag_field].tolist()
             print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
             ctr += 1
 
     # Drop duplicates with the subset of Functional Location
-    df_out = df_out.drop_duplicates(subset=[tag_column], keep='last')
+    df_out = df_out.drop_duplicates(subset=[tag_field], keep='last')
 
     # Filtering out tags which already exist in AlignIT.
     if exclude_list:
-        df_out = df_out[~df_out[tag_column].isin(exclude_list)]
+        df_out = df_out[~df_out[tag_field].isin(exclude_list)]
 
     return df_out
-
 
 # ###################################### Section 5 ##################################### # ##################################### #####################################
 
