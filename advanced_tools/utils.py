@@ -471,7 +471,8 @@ def get_hierarchy_as_list(
     exclude_list=None,
     sub_level=None,
     tag_column='Functional Location',
-    parent_column='Superior functional location'
+    parent_column='Superior functional location',
+    print_details=True
     ):
     r"""
     Retrieve parent tags or children tags as a dataframe for a given tag lists
@@ -493,9 +494,11 @@ def get_hierarchy_as_list(
     if lookup_for == 'children':
         tag_field=tag_column
         parent_field=parent_column
+        sublevel_direction = lambda x: -abs(x)
     elif lookup_for == 'parents':
         tag_field=parent_column
         parent_field=tag_column
+        sublevel_direction = lambda x: abs(x)
     else:
         raise (AttributeError("lookup_for keyword argument must be either 'parents' or 'children'"))
 
@@ -507,33 +510,37 @@ def get_hierarchy_as_list(
 
     if sub_level:
         ctr = 1
-        print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
+        if print_details:
+            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
         # Extracting all upto given sublevel starting from the initial taglist
         while ctr <= sub_level:
             df_temp = main_df[main_df[parent_field].isin(tags)]
-            df_temp['Sublevel'] = ctr
+            df_temp['Sublevel'] = sublevel_direction(ctr)
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
-            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
+            if print_details:
+                print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
             ctr += 1
     else:
         ctr = 1
-        print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
+        if print_details:
+            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
         # Extracting all the sublevel starting from the initial taglist
         while len(tags) > 0:
             df_temp = main_df[main_df[parent_field].isin(tags)]
-            df_temp['Sublevel'] = ctr
+            df_temp['Sublevel'] = sublevel_direction(ctr)
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
-            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
+            if print_details:
+                print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
             ctr += 1
 
     # Drop duplicates with the subset of Functional Location
-    df_out = df_out.drop_duplicates(subset=[tag_field], keep='last')
+    df_out = df_out.drop_duplicates(subset=[tag_column], keep='last')
 
     # Filtering out tags which already exist in AlignIT.
     if exclude_list:
-        df_out = df_out[~df_out[tag_field].isin(exclude_list)]
+        df_out = df_out[~df_out[tag_column].isin(exclude_list)]
 
     return df_out
 
