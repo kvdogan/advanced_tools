@@ -15,6 +15,7 @@ import json
 import csv
 import collections
 import xlrd
+import xlsxwriter
 import pandas as pd
 from itertools import chain
 from six import string_types
@@ -213,7 +214,6 @@ def dataframe_diff(df1, df2):
     9  2013-11-25  Orange   8.6  Orange
     8  2013-11-25   Apple  22.1     Red
     """
-    import pandas as pd
     df = pd.concat([df1, df2])
     df = df.reset_index(drop=True)
 
@@ -250,7 +250,6 @@ def export_file_names(file_type=None):
     """
     from tkinter import messagebox, filedialog, Tk
     import warnings  # xlsx writer warning is eliminated
-    import xlsxwriter
     window = Tk()
     window.wm_withdraw()
     warnings.filterwarnings("ignore")  # xlsx writer hyperlink for 255+ char
@@ -429,7 +428,6 @@ def hierarchy_tree(table, output_file=None, on_screen=False):
 def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
                        wkbk="Outlined_Hierarchy_sample.xlsx", ws="Hierarchy"):
     """Create a hierarchical structure from the given file by looking parent and child relationship."""
-    import xlsxwriter
     ff = open(txtfile, "r", encoding="utf-8")
     rows = ff.readlines()
     ff.seek(0)
@@ -543,56 +541,3 @@ def get_hierarchy_as_list(
         df_out = df_out[~df_out[tag_column].isin(exclude_list)]
 
     return df_out
-
-# ###################################### Section 5 ##################################### # ##################################### #####################################
-
-# def xls_to_xlsx(fname):
-#     """
-#     Converting xls files to xlsx files
-#     :param fname:
-#     :return:
-#     """
-#     import win32com.client as win32
-#     try:
-#         excel = win32.gencache.EnsureDispatch('Excel.Application')
-#         wb = excel.Workbooks.Open(fname)
-# #        messagebox.showinfo(title = "Conversion",
-# #                            message="Excel 2003(.xls) format was converted to Excel 2007(.xlsx) format",
-# #                            detail = "Press OK to continue")
-#         wb.SaveAs(fname+"x", FileFormat=51)
-#         wb.Close()
-# #        excel.Application.Quit()
-# #        fname += "x"
-#     except TypeError:
-#         print("File could not be opened")
-#         # messagebox.showerror(title = "Error", message="File could not be opened")
-
-
-
-# def autofit_excel(wkbk, list_of_sheetnames_or_number=None):
-#     """
-#     Autofits excel sheets
-#     :param wkbk: name or path of excel workbook
-#     :param list_of_sheetnames_or_number: Default is False, means all the worksheet is handled, list of sheet names
-#     :return:
-#     """
-#     from xlwings import Workbook, Sheet
-#     try:
-#         wb = Workbook(wkbk)
-#         print(wb.fullname)
-#
-#         if list_of_sheetnames_or_number:
-#             for i in list_of_sheetnames_or_number:
-#                 Sheet(i).autofit()
-#         else:
-#             for i in Sheet.all():
-#                 i.autofit()
-#     except TypeError:
-#         print("Excel file could not be found, Available excel files are as follows:")
-#         wb = Workbook()
-#         if len(wb.xl_app.Workbooks) == 1:
-#             print("There is no opened Excel Workbook")
-#         else:
-#             for i in wb.xl_app.Workbooks:
-#                 print(i.Name)
-#         wb.close()
