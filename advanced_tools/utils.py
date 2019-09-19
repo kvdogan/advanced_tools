@@ -21,7 +21,7 @@ from itertools import chain
 from six import string_types
 from collections import defaultdict
 
-# ###################################### Section 1 ##################################### # ##################################### #####################################
+# ###################################### Section 1 ##################################### #
 
 
 def json_to_csv(input_file_path, output_file_path, sep=';'):
@@ -41,7 +41,8 @@ def json_to_csv(input_file_path, output_file_path, sep=';'):
 
     def to_keyvalue_pairs(source, ancestors=[], key_delimeter='_'):
         def is_sequence(arg):
-            return (not isinstance(arg, string_types)) and (hasattr(arg, "__getitem__") or hasattr(arg, "__iter__"))
+            return (not isinstance(arg, string_types)) and (hasattr(
+                arg, "__getitem__") or hasattr(arg, "__iter__"))
 
         def is_dict(arg):
             return isinstance(arg, dict)
@@ -50,7 +51,10 @@ def json_to_csv(input_file_path, output_file_path, sep=';'):
             result = [to_keyvalue_pairs(source[key], ancestors + [key]) for key in source.keys()]
             return list(chain.from_iterable(result))
         elif is_sequence(source):
-            result = [to_keyvalue_pairs(item, ancestors + [str(index)]) for (index, item) in enumerate(source)]
+            result = [
+                to_keyvalue_pairs(item, ancestors + [str(index)])
+                for (index, item) in enumerate(source)
+            ]
             return list(chain.from_iterable(result))
         else:
             return [(key_delimeter.join(ancestors), source)]
@@ -86,7 +90,7 @@ def checkfile(path):
     root, ext = os.path.splitext(os.path.expanduser(path))
     dir = os.path.dirname(root)
     fname = os.path.basename(root)
-    candidate = fname+ext
+    candidate = fname + ext
     index = 1
     ls = set(os.listdir(dir))
     while candidate in ls:
@@ -160,9 +164,9 @@ def combine_txt_files(folder, sep='\t', encoding='latin1', skip_rows=0):
             with open(filex, 'r', encoding='latin1') as source:
                 lines = source.readlines()
                 for line in lines[skip_rows:]:
-                    output.writelines(source.name+'\t'+line)
+                    output.writelines(source.name + '\t' + line)
 
-# ###################################### Section 2 ##################################### # ##################################### #####################################
+# ###################################### Section 2 ##################################### #
 
 
 def combine_multiple_csv_into_excel(full_path_to_folder=None, sep='\t', encoding='latin1'):
@@ -174,7 +178,7 @@ def combine_multiple_csv_into_excel(full_path_to_folder=None, sep='\t', encoding
     :return: excel file with one extra column showing the name of the file.
     """
     csv_files = sorted(get_filepaths(full_path_to_folder))
-    folder_name = os.path.split(full_path_to_folder)[1]  # This is used to have folder location and folder name
+    folder_name = os.path.split(full_path_to_folder)[1]  # For folder location and folder name
 
     df_base = pd.read_csv(csv_files[0], sep=sep, encoding=encoding, low_memory=False)
     df_base['File_Name'] = os.path.splitext(os.path.split(csv_files[0])[1])[0]
@@ -200,7 +204,7 @@ def split_worksheets(file):
     for k, v in dfs_to_split.items():
         export_file_name = os.path.join(
             os.path.split(file)[0], "{}.xlsx".format(k)
-            )
+        )
         writer = pd.ExcelWriter(export_file_name, engine='xlsxwriter')
         v.to_excel(excel_writer=writer, sheet_name=k, index=False)
         writer.save()
@@ -233,12 +237,12 @@ def dataframe_countif(df, col):
     :param df1: Dataframe
     :param col: Column to count
     """
-    new_col = col+"_Count"
+    new_col = col + "_Count"
     df1 = df.copy()
     df1[new_col] = df1.groupby(col)[col].transform('count')
     return df1
 
-# ###################################### Section 3 ##################################### # ##################################### #####################################
+# ###################################### Section 3 #####################################
 
 
 def export_file_names(file_type=None):
@@ -274,9 +278,9 @@ def export_file_names(file_type=None):
     row = 0
     while row < len(filenames):
         splited_file_name = os.path.split(filenames[row])
-        ws1.write(row+1, 0, splited_file_name[0])
-        ws1.write(row+1, 1, splited_file_name[1])
-        ws1.write_url(row+1, 2, filenames[row], string='Open File')  # Implicit format.
+        ws1.write(row + 1, 0, splited_file_name[0])
+        ws1.write(row + 1, 1, splited_file_name[1])
+        ws1.write_url(row + 1, 2, filenames[row], string='Open File')  # Implicit format.
         row += 1
 
     wb1.close()
@@ -329,7 +333,7 @@ def get_filepaths(rootdir=None, file_type='all', flat=True):
 
     >   [(file1_name, file1_parentfolder_path, file1_peers_number)]
     >   [
-            ("xxx.txt", r'C:\\temp', 2), 
+            ("xxx.txt", r'C:\\temp', 2),
             ('xxx.txt',r'C:\\temp\\temp2',5)
         ]
     """
@@ -347,22 +351,23 @@ def get_filepaths(rootdir=None, file_type='all', flat=True):
     if flat:
         return [os.path.join(root, file) for file, root in file_paths]
     else:
-        return [i + (file_paths.index(i)+1,) for i in file_paths]
+        return [i + (file_paths.index(i) + 1,) for i in file_paths]
 
 
 def prepare_and_sortphotos(
-    source_dir=r"./Pictures", 
+    source_dir=r"./Pictures",
     destination_dir=r"./Pictures/ArrangedPictures",
     extension_to_fix='.HEIC',
-    rename=True):
-    """This is a simple wrapper function for sortphotos library. Prepares images by 
-    converting .HEIC extensions to jpg if necessary. 
-    
+    rename=True
+):
+    """This is a simple wrapper function for sortphotos library. Prepares images by
+    converting .HEIC extensions to jpg if necessary.
+
     For more detail implementations check sortphotos library options.
-    
+
     Keyword Arguments:
         source_dir {str} -- Directory with photos to arrange (default: {r"./Pictures"})
-        destination_dir {str} -- Directory for arranged photos, in case of not existing, 
+        destination_dir {str} -- Directory for arranged photos, in case of not existing,
         it creates automatically (default: {r"./Pictures/ArrangedPictures"})
         extension_to_fix {str} -- Extension to convert to .jpg (default: {".HEIC"})
 
@@ -371,8 +376,8 @@ def prepare_and_sortphotos(
     pics = get_filepaths(source_dir)
 
     for i in pics:
-        if os.path.splitext(i)[1]==extension_to_fix:
-            os.rename(i, os.path.join(os.path.splitext(i)[0]+".jpg"))
+        if os.path.splitext(i)[1] == extension_to_fix:
+            os.rename(i, os.path.join(os.path.splitext(i)[0] + ".jpg"))
         else:
             pass
     if rename:
@@ -381,8 +386,8 @@ def prepare_and_sortphotos(
         )
     else:
         subprocess.call("sortphotos {} {}".format(source_dir, destination_dir))
-        
-# ###################################### Section 4 ##################################### # ##################################### #####################################
+
+# ###################################### Section 4 ##################################### #
 
 
 def hierarchy_tree(table, output_file=None, on_screen=False):
@@ -412,7 +417,7 @@ def hierarchy_tree(table, output_file=None, on_screen=False):
 
     def display(item, nodes, level):
         if on_screen is False and output_file is not None:
-            output.writelines('%s%s%s' % ('\t|' * level, '\\_', item+'\n'))
+            output.writelines('%s%s%s' % ('\t|' * level, '\\_', item + '\n'))
             for child in sorted(nodes.get(item, [])):
                 display(child, nodes, level + 1)
         else:
@@ -427,7 +432,17 @@ def hierarchy_tree(table, output_file=None, on_screen=False):
 
 def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
                        wkbk="Outlined_Hierarchy_sample.xlsx", ws="Hierarchy"):
-    """Create a hierarchical structure from the given file by looking parent and child relationship."""
+    """
+    Create a hierarchical structure from the given file by looking parent and child relationship
+    Arguments:
+        txtfile {[type]} -- Structured txt file which is the output of hierarchy tree algorithm
+
+    Keyword Arguments:
+        sysname {str} -- Name of the system (default: {"HVAC_sample"})
+        sysno {str} -- Number of the system (default: {"97_sample"})
+        wkbk {str} -- Name for output excel file (default: {"Outlined_Hierarchy_sample.xlsx"})
+        ws {str} -- Name for excel sheey (default: {"Hierarchy"})
+    """
     ff = open(txtfile, "r", encoding="utf-8")
     rows = ff.readlines()
     ff.seek(0)
@@ -446,19 +461,21 @@ def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
     # write the first row as heading (projects info and child tag levels)
     ws1.write(0, 0, "System: {}, System No:{}".format(sysname, sysno), bold)
     total_level = max(list(map(lambda x: x.count('|'), rows)))
-    for i in range(2, total_level+2):
-        ws1.write(0, i-1, "Level_{}".format(i), level_text)
+    for i in range(2, total_level + 2):
+        ws1.write(0, i - 1, "Level_{}".format(i), level_text)
 
     rowfor = 1
     colfor = 0
     while rowfor < len(rows):
-        ws1.set_row(rowfor, None, None, {'level': colfor+rows[rowfor-1].count("|"), 'hidden': False})
+        ws1.set_row(
+            rowfor, None, None, {'level': colfor + rows[rowfor - 1].count("|"), 'hidden': False}
+        )
         rowfor += 1
 
     row = 1
     col = 0
     while row < len(rows):
-        ws1.write(row, col+rows[row-1].count("|"), rows[row-1])
+        ws1.write(row, col + rows[row - 1].count("|"), rows[row - 1])
         row += 1
     wb.close()
 
@@ -471,7 +488,7 @@ def get_hierarchy_as_list(
     tag_column='Functional Location',
     parent_column='Superior functional location',
     print_details=True
-    ):
+):
     r"""
     Retrieve parent tags or children tags as a dataframe for a given tag lists
 
@@ -481,25 +498,26 @@ def get_hierarchy_as_list(
 
     Keyword Arguments:
         lookup_for {str} -- Either 'children' or 'parents' at a time (default: {'parents'})
-        exclude_list {list} -- List of tags that will be excluded from final output (default: {None})
+        exclude_list {list} -- List of tags that will be excluded from final output
+        (default: {None})
         sub_level {int} -- Level of parent or children tags (default: {None})
         tag_column {str} -- Name of the tag column in main_df (default: {'Functional Location'})
-        parent_column {str} -- Name of the parent tag column in main_df (default: {'Superior functional location'})
+        parent_column {str} -- Name of the parent tag column in main_df
+        (default: {'Superior functional location'})
 
     Returns:
         [pandas.Dataframe] -- [Output of desired list of parents or children]
     """
     if lookup_for == 'children':
-        tag_field=tag_column
-        parent_field=parent_column
+        tag_field = tag_column
+        parent_field = parent_column
         sublevel_direction = lambda x: -abs(x)
     elif lookup_for == 'parents':
-        tag_field=parent_column
-        parent_field=tag_column
+        tag_field = parent_column
+        parent_field = tag_column
         sublevel_direction = lambda x: abs(x)
     else:
         raise (AttributeError("lookup_for keyword argument must be either 'parents' or 'children'"))
-
 
     # Extracting initial dataframe as sublevel=1 from df['sap'] with initial taglist.
     df_out = main_df[main_df[tag_column].isin(tag_list)].copy()
@@ -509,7 +527,7 @@ def get_hierarchy_as_list(
     if sub_level:
         ctr = 1
         if print_details:
-            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
+            print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr - 1))
         # Extracting all upto given sublevel starting from the initial taglist
         while ctr <= sub_level:
             df_temp = main_df[main_df[parent_field].isin(tags)]
@@ -517,12 +535,12 @@ def get_hierarchy_as_list(
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
             if print_details:
-                print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
+                print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr))
             ctr += 1
     else:
         ctr = 1
         if print_details:
-            print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr-1))
+            print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr - 1))
         # Extracting all the sublevel starting from the initial taglist
         while len(tags) > 0:
             df_temp = main_df[main_df[parent_field].isin(tags)]
@@ -530,7 +548,7 @@ def get_hierarchy_as_list(
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
             if print_details:
-                print("Total number of tags: " + str(len(tags))+" at level-"+str(ctr))
+                print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr))
             ctr += 1
 
     # Drop duplicates with the subset of Functional Location
