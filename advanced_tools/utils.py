@@ -524,7 +524,7 @@ def get_hierarchy_as_list(
     df_out['Sublevel'] = 0
     tags = df_out[tag_field].tolist()
 
-    if sub_level:
+    if sub_level is not None:
         ctr = 1
         if print_details:
             print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr - 1))
@@ -559,3 +559,123 @@ def get_hierarchy_as_list(
         df_out = df_out[~df_out[tag_column].isin(exclude_list)]
 
     return df_out
+
+
+def apex_workorders(
+    hierarchyDF=None,
+    lookupDF=None,
+    taglist=None,
+    tag_column='Functional Location',
+    parent_column='Superior functional location',
+    parents=dict(include=True, level=None, include_children_of_parents=False, cop_level=None),
+    children=dict(include=True, level=None),
+    sisters=dict(include=True, include_children_of_sisters=False, cos_level=None),
+    export=False,
+    groupby_columns=['Functional Location', 'Order', 'Description'],
+):
+    """
+    Compiles workorder based on desired hierarchical way, with the aid of get_hierarchy_as_list
+    utility function from advanced_tools and pandas library.
+
+    Keyword Arguments:
+        hierarchyDF {pandas.DataFrame} -- DataFrame that represents hierarchy with columns of
+            tag_column and parent columns (default: {None})
+        lookupDF {pandas.DataFrame} -- Lookup DataFrame matching tag column in hierarchyDF
+            (default: {None})
+        taglist {list} -- List of tags to merge from lookupDF (default: {None})
+        tag_column {str} -- Name of the tag column (default: {'Functional Location'})
+        parent_column {str} -- Name of the parent column
+            (default: {'Superior functional location'})
+        parents {dict} -- Dict of arguments for get_hierarchy_as_list function (default:
+            {dict(include=True, level=None, include_children_of_parents=False, cop_level=None)})
+        children {dict} -- Dict of arguments for get_hierarchy_as_list function
+            (default: {dict(include=True, level=None)})
+        sisters {dict} -- Dict of arguments for get_hierarchy_as_list function
+            (default: {dict(include_children_of_sisters=False, cos_level=None)})
+        export {bool} -- Export groupby output to excel (default: {False})
+        groupby_columns {list} -- Name of the columns to groupby excel output
+            (default: {['Functional Location', 'Order', 'Description']})
+
+    Returns:
+        {pandas.DataFrame} -- DataFrame object of compiled Workorders
+    """
+    if parents['include']:
+        ptags = get_hierarchy_as_list(
+            main_df=hierarchyDF, tag_list=taglist,
+            tag_column=tag_column, parent_column=parent_column,
+            lookup_for='parents', sub_level=parents['level'], print_details=False
+        )
+        if parents['include_children_of_parents']:
+            coptags = get_hierarchy_as_list(
+                main_df=hierarchyDF, tag_list=ptags[tag_column].tolist(),
+                tag_column=tag_column, parent_column=parent_column,
+                lookup_for='children', sub_level=parents['cop_level']
+            )
+
+            ptags = pd.concat([ptags, coptags])
+    else:
+        ptags = pd.DataFrame()
+
+    if children['include']:
+        ctags = get_hierarchy_as_list(
+            main_df=hierarchyDF, tag_list=taglist,
+            tag_column=tag_column, parent_column=parent_column,
+            lookup_for='children', sub_level=children['level'],
+            print_details=False
+        )
+    else:
+        ctags = pd.DataFrame()
+
+    if sisters['include']:
+        first_parents = hierarchyDF.loc[hierarchyDF[tag_column].
+                                        isin(taglist), parent_column].drop_duplicates().tolist()
+
+        sister_tags = hierarchyDF.loc[hierarchyDF[parent_column].
+                                      isin(first_parents), tag_column].unique().tolist()
+
+        if not sisters['include_children_of_sisters']:
+            stags = hierarchyDF[hierarchyDF[tag_column].isin(sister_tags)]
+            stags['Sublevel'] = 0
+        else:
+            stags = get_hierarchy_as_list(
+                main_df=hierarchyDF, tag_list=sister_tags,
+                tag_column=tag_column, parent_column=parent_column,
+                lookup_for='children', sub_level=sisters['cos_level'],
+                print_details=False
+            )
+    else:
+        stags = pd.DataFrame()
+
+    ttags = pd.concat([ptags, stags, ctags])
+
+    if len(ttags) > 0:
+        ttags.drop_duplicates(inplace=True, keep='first')
+    else:
+        ttags = hierarchyDF[hierarchyDF[tag_column].isin(taglist)]
+        ttags['Sublevel'] = 0
+
+    wos = lookupDF[lookupDF[tag_column].isin(ttags[tag_column].tolist())]
+
+    tos = wos.merge(
+        ttags[['Functional Location', 'Location', 'Sublevel']], on="Functional Location", how='left'
+    )
+
+    if export:
+        wos.fillna('NoValueAvailable', inplace=True)
+        wos.groupby(groupby_columns).agg('count').to_excel(
+            'WOs_for_{}_with_P({}-{})-CoP({}-{})-C({}-{})-S({}-CoS{}-{}).xlsx'.format(
+                taglist[0],
+                str(parents['include']),
+                str(parents['level']),
+                str(parents['include_children_of_parents']),
+                str(parents['cop_level']),
+                str(children['include']),
+                str(children['level']),
+                str(sisters['include']),
+                str(parents['include_children_of_sisters']),
+                str(parents['cos_level']),
+            )
+        )
+    else:
+        pass
+    return tos
