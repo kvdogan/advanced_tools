@@ -609,7 +609,7 @@ def apex_workorders(
             coptags = get_hierarchy_as_list(
                 main_df=hierarchyDF, tag_list=ptags[tag_column].tolist(),
                 tag_column=tag_column, parent_column=parent_column,
-                lookup_for='children', sub_level=parents['cop_level']
+                lookup_for='children', sub_level=parents['cop_level'], print_details=False
             )
 
             ptags = pd.concat([ptags, coptags])
