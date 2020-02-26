@@ -242,6 +242,35 @@ def dataframe_countif(df, col):
     df1[new_col] = df1.groupby(col)[col].transform('count')
     return df1
 
+
+def split_and_export_dataframe(df, nrows, sortby=None, output_name=None, export_csv=True):
+    """SPlit dataframe with given row numbers and export it wither in csv or excel
+    
+    Arguments:
+        df {pd.DataFrame} -- Pandas dataframe
+        nrows {int} -- Number of rows to split the database
+    
+    Keyword Arguments:
+        sortby {string} -- Sort DataFrame before splitting (default: {None})
+        output_name {string} -- Output file name to save, input if not given (default: {None})
+        export_csv {bool} -- Output file format, (default: {True}) ';' seperated csv file'
+    """
+    if sortby is not None:
+        df.sort_values(by='material_no', inplace=True)
+    n_iter = int(pd.np.ceil(len(df) / nrows))
+    if output_name is None:
+        output_name = input("Please name the output file to save: ")
+
+    if export_csv:
+        for i in range(n_iter):
+            df[nrows * i:nrows * i + nrows].to_csv(
+                checkfile(r'./{}.csv'.format(output_name)), sep=';', index=False)
+    else:
+        for i in range(n_iter):
+            df[nrows * i:nrows * i + nrows].to_excel(
+                checkfile(r'./{}.xlsx'.format(output_name)), index=False)
+
+
 # ###################################### Section 3 #####################################
 
 
