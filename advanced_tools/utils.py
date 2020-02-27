@@ -256,7 +256,7 @@ def split_and_export_dataframe(df, nrows, sortby=None, output_name=None, export_
         export_csv {bool} -- Output file format, (default: {True}) ';' seperated csv file'
     """
     if sortby is not None:
-        df.sort_values(by='material_no', inplace=True)
+        df.sort_values(by=sortby, inplace=True)
     n_iter = int(pd.np.ceil(len(df) / nrows))
     if output_name is None:
         output_name = input("Please name the output file to save: ")
