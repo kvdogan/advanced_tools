@@ -6,22 +6,26 @@ Sections:
 2. Pandas Utils
 3. Path Operations for File/Folder/System
 4. Algorithms for Hierarchical Structures
-5. win32 COM utilities (not in use)
+5. Utility functions for xlrd library and read_spir function
 """
 
-import os
-import subprocess
-import json
-import csv
 import collections
-import xlrd
-import xlsxwriter
-import pandas as pd
-from itertools import chain
-from six import string_types
+import csv
+import json
+import os
+import re
+import subprocess
+import warnings  # xlsx writer warning is eliminated
 from collections import defaultdict
+from itertools import chain
+from tkinter import Tk, filedialog, messagebox
 
-# ###################################### Section 1 ##################################### #
+import pandas as pd
+import xlrd as xl
+import xlsxwriter
+from six import string_types
+
+# ########################## File Read/Write/Convert/Save Operations ########################## #
 
 
 def json_to_csv(input_file_path, output_file_path, sep=';'):
@@ -41,8 +45,8 @@ def json_to_csv(input_file_path, output_file_path, sep=';'):
 
     def to_keyvalue_pairs(source, ancestors=[], key_delimeter='_'):
         def is_sequence(arg):
-            return (not isinstance(arg, string_types)) and (hasattr(
-                arg, "__getitem__") or hasattr(arg, "__iter__"))
+            return (not isinstance(arg, string_types)
+                   ) and (hasattr(arg, "__getitem__") or hasattr(arg, "__iter__"))
 
         def is_dict(arg):
             return isinstance(arg, dict)
@@ -114,12 +118,24 @@ def read_csv_to_lol(full_path, sep=";"):
     return data
 
 
+def write_lol_to_csv(output_csv=None, headers=None, data=None, seperator=";"):
+    if not isinstance(data, list) or not isinstance(headers, list):
+        raise (TypeError("Data must be lists of list and header must be plain list"))
+    if not os.path.isfile(output_csv):
+        with open(output_csv, 'w', newline='', encoding="utf-8") as output:
+            csv_output = csv.writer(output, delimiter=seperator)
+            csv_output.writerow(headers)
+    with open(output_csv, 'a', newline='', encoding="utf-8") as output:
+        csv_output = csv.writer(output, delimiter=seperator)
+        csv_output.writerows(data)
+
+
 def read_excel_to_lol(fname, sheet_index=0):
     """
     Read excel file into lists of list.
     Make sure to indicate sheet index if it is not the first sheet
     """
-    wb = xlrd.open_workbook(fname)
+    wb = xl.open_workbook(fname)
     sh = wb.sheet_by_index(sheet_index)
     return [sh.row_values(i) for i in range(sh.nrows)]
 
@@ -136,7 +152,7 @@ def write_to_txt(list_item, full_path_txt):
             for i in list_item:
                 ff.write("{}\n".format(i))
     else:
-        raise TypeError("Please use a python list for write into txt file")
+        raise (TypeError("Please use a python list for write into txt file"))
 
 
 def read_from_txt(file):
@@ -166,7 +182,8 @@ def combine_txt_files(folder, sep='\t', encoding='latin1', skip_rows=0):
                 for line in lines[skip_rows:]:
                     output.writelines(source.name + '\t' + line)
 
-# ###################################### Section 2 ##################################### #
+
+# ####################################### Pandas Utils ######################################## #
 
 
 def combine_multiple_csv_into_excel(full_path_to_folder=None, sep='\t', encoding='latin1'):
@@ -202,9 +219,7 @@ def split_worksheets(file):
     # 'None' used as worksheet kwarg thus it could be read as Dataframe dict.
     dfs_to_split = collections.OrderedDict(sorted(dfs_to_split.items()))
     for k, v in dfs_to_split.items():
-        export_file_name = os.path.join(
-            os.path.split(file)[0], "{}.xlsx".format(k)
-        )
+        export_file_name = os.path.join(os.path.split(file)[0], "{}.xlsx".format(k))
         writer = pd.ExcelWriter(export_file_name, engine='xlsxwriter')
         v.to_excel(excel_writer=writer, sheet_name=k, index=False)
         writer.save()
@@ -263,26 +278,42 @@ def split_and_export_dataframe(df, nrows, sortby=None, output_name=None, export_
 
     if export_csv:
         for i in range(n_iter):
-            df[nrows * i:nrows * i + nrows].to_csv(
-                checkfile(r'./{}.csv'.format(output_name)), sep=';', index=False)
+            df[nrows * i:nrows * i +
+               nrows].to_csv(checkfile(r'./{}.csv'.format(output_name)), sep=';', index=False)
     else:
         for i in range(n_iter):
-            df[nrows * i:nrows * i + nrows].to_excel(
-                checkfile(r'./{}.xlsx'.format(output_name)), index=False)
+            df[nrows * i:nrows * i +
+               nrows].to_excel(checkfile(r'./{}.xlsx'.format(output_name)), index=False)
 
 
-# ###################################### Section 3 #####################################
+def convert_to_hyperlink(x):
+    """
+    Converts pandas column given in apply function to hyperlink for excel export
+
+    Usage:
+        df['Link'] = df['Link'].apply(convert_to_hyperlink)
+    
+    Returns:
+        DataFrame -- Creates or modifies given DataFrame column
+    """
+    if "#" in x:
+        return "'#' in file path is not allowed in Excel Hyperlinks"
+    else:
+        return f'=HYPERLINK("{x}", "Click to Open")'
 
 
-def export_file_names(file_type=None):
+# ########################## Path Operations for File/Folder/System ########################## #
+
+
+def export_file_names(file_type=None, use_relative_path=True):
     """
     Walk through the folder structures and creates excel file with hyperlink.
     to every single file
-    :param file_type:
-    :return:
+
+    Keyword Arguments:
+        file_type {string} -- File extension i.e. ".xls" (default: {None})
+        use_relative_path {bool} -- Relative paths to selected folder (default: {True})
     """
-    from tkinter import messagebox, filedialog, Tk
-    import warnings  # xlsx writer warning is eliminated
     window = Tk()
     window.wm_withdraw()
     warnings.filterwarnings("ignore")  # xlsx writer hyperlink for 255+ char
@@ -291,32 +322,42 @@ def export_file_names(file_type=None):
     if file_type is None or not isinstance(file_type, str):
         filenames = [i for i in filenames if "$" not in i]
     else:
-        filenames = [i for i in filenames if i.endswith(file_type) and "$" not in i]
+        filenames = [i for i in filenames if i.lower().endswith(file_type) and "$" not in i]
 
-    # Add workbook and worksheet
-    wkbk = os.path.join(folder, '____Link2Files____.xlsx')
-    wb1 = xlsxwriter.Workbook(wkbk)
-    ws1 = wb1.add_worksheet('FileNames')
-    # Add a general format
-    bold = wb1.add_format({'bold': 1})
-    # write the first row as heading
-    ws1.write(0, 0, "File Location", bold)
-    ws1.write(0, 1, "File Name", bold)
-    ws1.write(0, 2, 'Hyperlink', bold)
+    df = pd.DataFrame(data=filenames, columns=['Path'])
+    df['FileName'] = df['Path'].apply(lambda x: os.path.split(x)[1])
 
-    row = 0
-    while row < len(filenames):
-        splited_file_name = os.path.split(filenames[row])
-        ws1.write(row + 1, 0, splited_file_name[0])
-        ws1.write(row + 1, 1, splited_file_name[1])
-        ws1.write_url(row + 1, 2, filenames[row], string='Open File')  # Implicit format.
-        row += 1
+    if use_relative_path:
+        df['Link'] = df['Path'].apply(lambda x: os.path.relpath(x, folder))
+    else:
+        df['Link'] = df['Path']
 
-    wb1.close()
+    df['Link'] = df['Link'].apply(convert_to_hyperlink)
 
-    messagebox.showinfo(title="Complete",
-                        message="Done!",
-                        detail="")
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(
+        os.path.join(os.path.join(folder, '____Link2Files____.xlsx')),
+        engine='xlsxwriter')
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='Link2Files', index=False)
+    # Get the xlsxwriter workbook and worksheet objects.
+    workbook  = writer.book
+    worksheet = writer.sheets['Link2Files']
+    # Add some cell formats.
+    custom_hyperlink_format = workbook.add_format({
+        'font_color': 'blue',
+        # 'bold':       1,
+        'underline':  1,
+        'font_size':  12,
+    })
+    # Note: It isn't possible to format any cells that already have a format such
+    # as the index or headers or any cells that contain dates or datetimes.
+    # Set the format but not the column width.
+    worksheet.set_column('C:C', None, custom_hyperlink_format)
+    # Close the Pandas Excel writer and output the Excel file.
+    writer.save()
+
+    messagebox.showinfo(title="Complete", message="Done!", detail="")
 
 
 def get_folder_structure(directory=None, file_type=""):
@@ -337,7 +378,7 @@ def get_folder_structure(directory=None, file_type=""):
             for dn in dirnames:
                 d[dn] = {}
         else:
-            based[subd] = [i for i in filenames if i.endswith(file_type) and "$" not in i]
+            based[subd] = [i for i in filenames if i.lower().endswith(file_type) and "$" not in i]
     return alld['']
 
 
@@ -374,13 +415,13 @@ def get_filepaths(rootdir=None, file_type='all', flat=True):
     else:
         file_paths = [
             (file, root) for root, directories, files in os.walk(rootdir)
-            for file in files if os.path.splitext(file)[1] in file_type and "$" not in file
+            for file in files if os.path.splitext(file)[1].lower() in file_type and "$" not in file
         ]
 
     if flat:
         return [os.path.join(root, file) for file, root in file_paths]
     else:
-        return [i + (file_paths.index(i) + 1,) for i in file_paths]
+        return [i + (file_paths.index(i) + 1, ) for i in file_paths]
 
 
 def prepare_and_sortphotos(
@@ -416,7 +457,8 @@ def prepare_and_sortphotos(
     else:
         subprocess.call("sortphotos {} {}".format(source_dir, destination_dir))
 
-# ###################################### Section 4 ##################################### #
+
+# ########################## Algorithms for Hierarchical Structures ########################## #
 
 
 def hierarchy_tree(table, output_file=None, on_screen=False):
@@ -459,8 +501,13 @@ def hierarchy_tree(table, output_file=None, on_screen=False):
     output.close()
 
 
-def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
-                       wkbk="Outlined_Hierarchy_sample.xlsx", ws="Hierarchy"):
+def outlined_hierarchy(
+    txtfile,
+    sysname="HVAC_sample",
+    sysno="97_sample",
+    wkbk="Outlined_Hierarchy_sample.xlsx",
+    ws="Hierarchy"
+):
     """
     Create a hierarchical structure from the given file by looking parent and child relationship
     Arguments:
@@ -497,7 +544,10 @@ def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
     colfor = 0
     while rowfor < len(rows):
         ws1.set_row(
-            rowfor, None, None, {'level': colfor + rows[rowfor - 1].count("|"), 'hidden': False}
+            rowfor, None, None, {
+                'level': colfor + rows[rowfor - 1].count("|"),
+                'hidden': False
+            }
         )
         rowfor += 1
 
@@ -510,7 +560,8 @@ def outlined_hierarchy(txtfile, sysname="HVAC_sample", sysno="97_sample",
 
 
 def get_hierarchy_as_list(
-    main_df, tag_list,
+    main_df,
+    tag_list,
     lookup_for='children',
     exclude_list=None,
     sub_level=None,
@@ -630,15 +681,23 @@ def apex_workorders(
     """
     if parents['include']:
         ptags = get_hierarchy_as_list(
-            main_df=hierarchyDF, tag_list=taglist,
-            tag_column=tag_column, parent_column=parent_column,
-            lookup_for='parents', sub_level=parents['level'], print_details=False
+            main_df=hierarchyDF,
+            tag_list=taglist,
+            tag_column=tag_column,
+            parent_column=parent_column,
+            lookup_for='parents',
+            sub_level=parents['level'],
+            print_details=False
         )
         if parents['include_children_of_parents']:
             coptags = get_hierarchy_as_list(
-                main_df=hierarchyDF, tag_list=ptags[tag_column].tolist(),
-                tag_column=tag_column, parent_column=parent_column,
-                lookup_for='children', sub_level=parents['cop_level'], print_details=False
+                main_df=hierarchyDF,
+                tag_list=ptags[tag_column].tolist(),
+                tag_column=tag_column,
+                parent_column=parent_column,
+                lookup_for='children',
+                sub_level=parents['cop_level'],
+                print_details=False
             )
 
             ptags = pd.concat([ptags, coptags])
@@ -647,29 +706,35 @@ def apex_workorders(
 
     if children['include']:
         ctags = get_hierarchy_as_list(
-            main_df=hierarchyDF, tag_list=taglist,
-            tag_column=tag_column, parent_column=parent_column,
-            lookup_for='children', sub_level=children['level'],
+            main_df=hierarchyDF,
+            tag_list=taglist,
+            tag_column=tag_column,
+            parent_column=parent_column,
+            lookup_for='children',
+            sub_level=children['level'],
             print_details=False
         )
     else:
         ctags = pd.DataFrame()
 
     if sisters['include']:
-        first_parents = hierarchyDF.loc[hierarchyDF[tag_column].
-                                        isin(taglist), parent_column].drop_duplicates().tolist()
+        first_parents = hierarchyDF.loc[hierarchyDF[tag_column].isin(taglist),
+                                        parent_column].drop_duplicates().tolist()
 
-        sister_tags = hierarchyDF.loc[hierarchyDF[parent_column].
-                                      isin(first_parents), tag_column].unique().tolist()
+        sister_tags = hierarchyDF.loc[hierarchyDF[parent_column].isin(first_parents),
+                                      tag_column].unique().tolist()
 
         if not sisters['include_children_of_sisters']:
             stags = hierarchyDF[hierarchyDF[tag_column].isin(sister_tags)]
             stags['Sublevel'] = 0
         else:
             stags = get_hierarchy_as_list(
-                main_df=hierarchyDF, tag_list=sister_tags,
-                tag_column=tag_column, parent_column=parent_column,
-                lookup_for='children', sub_level=sisters['cos_level'],
+                main_df=hierarchyDF,
+                tag_list=sister_tags,
+                tag_column=tag_column,
+                parent_column=parent_column,
+                lookup_for='children',
+                sub_level=sisters['cos_level'],
                 print_details=False
             )
     else:
@@ -686,7 +751,9 @@ def apex_workorders(
     wos = lookupDF[lookupDF[tag_column].isin(ttags[tag_column].tolist())]
 
     tos = wos.merge(
-        ttags[['Functional Location', 'Location', 'Sublevel']], on="Functional Location", how='left'
+        ttags[['Functional Location', 'Location', 'Sublevel']],
+        on="Functional Location",
+        how='left'
     )
 
     if export:
@@ -708,3 +775,485 @@ def apex_workorders(
     else:
         pass
     return tos
+
+
+# ######################### Utility functions for Python xlrd library ######################### #
+
+def _get_cell_range(sheet_obj, start_row, start_col, end_row, end_col):
+    """
+    Get cell range in xlrd module as two level nested list.
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object} -- xlrd worksheet instance
+        start_row {int} -- Number of start row
+        start_col {int} -- Number of start column
+        end_row {int} -- Number of last row
+        end_col {int} -- Number of last column
+    
+    Returns:
+        list -- Cell range as two level nested list
+    """
+    return [
+        sheet_obj.row_slice(row, start_colx=start_col, end_colx=end_col + 1)
+        for row in range(start_row, end_row + 1)
+    ]
+
+
+def _convert_empty_cells(sheet_obj, convert_to=None):
+    """
+    Create a list with all row numbers that contain data and loop through it.
+    Create a list with all column numbers that contain data and loop through i
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+    
+    Keyword Arguments:
+        convert_to {str, int, None} -- (default: {None})
+    """
+    for r in range(0, sheet_obj.nrows):
+        for c in range(0, sheet_obj.ncols):
+            if sheet_obj.cell_type(r, c) == xl.XL_CELL_EMPTY:
+                sheet_obj._cell_values[r][c] = convert_to
+
+
+def _get_sheet_dimension(sheet_obj):
+    """Return sheet dimension for quality validation issues
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+    
+    Returns:
+        dict -- Dictionary of 'spirname', 'maxcol', 'maxrow'
+    """
+    return {'spirname': sheet_obj.name, 'maxcol': sheet_obj.ncols, 'maxrow': sheet_obj.nrows}
+    # print(f"{spir_sheet.name}\tmaxCol: {spir_sheet.ncols}\tmaxRow: {spir_sheet.nrows}")
+
+
+def _find_pattern(sheet_obj, pattern):
+    """
+    Finds given regex pattern
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+        pattern {string} -- Regex pattern
+    
+    Returns:
+        list -- List of (row, col) tuples that match regex pattern
+    """
+
+    row_col_list = []
+    for r in range(0, sheet_obj.nrows):
+        for c in range(0, sheet_obj.ncols):
+            if re.search(pattern, str(sheet_obj.cell_value(r, c))):
+                row_col_list.append(sheet_obj.cell_value(r, c))
+
+    return row_col_list
+
+    # if len(set(row_col_list)) == 1:
+    #     return row_col_list[0]
+    # elif len(set(row_col_list)) > 1:
+    #     return sheet_obj.cell_value(*cell_for_spir)
+    # else:
+    #     return "NO_SPIR_REF_FOUND"
+
+
+def _get_horizontal_range(sheet_obj, row=None, start_col=None):
+    """
+    Find last filled cell in row, followed by two empty cell at least.
+    start_col==1 because requires validation of "Tag No." text
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+    
+    Keyword Arguments:
+        row {int} -- First Tag cell row (default: {4})
+        start_col {int} -- First Tag cell column (default: {1})
+    
+    Returns:
+        dict -- Dictionary of 'tag' and 'last_cell'
+    """
+    if "tag" in sheet_obj.cell_value(row, start_col-1).lower():
+        ctr = 0
+        cell_list = sheet_obj.row_slice(row, start_col)
+        z = []
+        while ctr < len(cell_list):
+            if cell_list[ctr].value is not None:
+                z.append(cell_list[ctr])
+                ctr += 1
+            elif cell_list[ctr].value is None and cell_list[ctr + 1].value is None:
+                break
+            else:
+                z.append(cell_list[ctr])
+                ctr += 1
+        return {'tags': z[1:], 'last_cell': (row, start_col + ctr - 1)}
+    else:
+        raise (ValueError("Check First Tag Cell in the SPIR"))
+
+
+# ########################## SPIR Codification Program and Utilities ########################## #
+
+
+def codify_spir(
+    path_to_spir='ENI_SPIR_Ref_form.xlsx', raise_error=True, tag_cell=(4, 2), mm_cell=(10, 29),
+):
+    """
+    Read SPIR forms for ENI Goliat Project or another companies.
+    First tag cell is manual input while last_tag_cell, first/last MM cell are found based
+    on script. Scripts are stored in utils.py
+    
+    Keyword Arguments:
+    path_to_spir {str}  -- Full path to SPIR file (default: {'ENI_SPIR_Ref_form.xlsx'})
+    tag_cell {tuple}    -- First Tag Cell (default: {(4, 2)})
+    mm_cell {tuple}     -- First Material Cell, this is used for overwriting if find_mm_column 
+                            function is not returning right value (default: {(10, 20)})
+    raise_error {bool}  -- Raised or printed errors getting silenced for multiple SPIRs,
+                            error handling can be done in wrapper structure (default: {False})
+    """
+    wb = xl.open_workbook(path_to_spir)
+    print(f"Codification started for: {os.path.split(path_to_spir)[1]}")
+    # From this point and on it is Platform Dependent ------------>
+    try:
+        spir_sheet_name = [
+            i for i in wb.sheet_names() if re.match(r"^spir$", i.strip(), re.IGNORECASE)][0]
+        spir_sheet = wb.sheet_by_name(spir_sheet_name)
+        _convert_empty_cells(spir_sheet)
+    except IndexError:
+        raise (NameError("There is no SPIR spreadsheet for found in the excel file"))
+
+    try:
+        cover_page = [i for i in wb.sheet_names() if re.match("front|cover", i, re.IGNORECASE)][0]
+        coversheet = wb.sheet_by_name(cover_page)
+        _convert_empty_cells(coversheet)
+        spir_name = list(set(_find_pattern(coversheet, pattern=r".+-MC-.+")))[0]
+    except IndexError as err:
+        spir_name = os.path.split(path_to_spir)[1]
+        if raise_error:
+            print(f"{os.path.split(path_to_spir)[1]} : {err}")
+
+
+    # Set reference cells, xlrd uses zero index row and column reference
+    # xlrd works like range(x,y) function for col_values so increase last value by 1.
+    ftc = tag_cell  # First tag cell coordinate
+    # ltc = (4, 4)               # Last tag cell coordinate, kept for overwriting purposes
+    # fmc = (10, 26)             # First material cell coordinate, kept for overwriting purposes
+    # lmc = (42, 26)             # Last material cell coordinate, kept for overwriting purposes
+
+    # Calculate number of spare parts in the SPIR form
+    fmc = _find_mm_column(spir_sheet, first_mm=mm_cell)
+
+    number_of_spares = len(spir_sheet.col_values(colx=fmc[1], start_rowx=fmc[0]))
+    ltc = _get_horizontal_range(spir_sheet, row=ftc[0], start_col=ftc[1])['last_cell']
+    lmc = (fmc[0] + number_of_spares - 1, fmc[1])  # Last material cell coordinate
+    fqc = (fmc[0], ftc[1])  # First quantity cell
+    lqc = (lmc[0], ltc[1])  # Last quantity cell
+
+    # From this point and on it is Platform Independent ------------>
+
+    # Read tag numbers as a simple list, row values works like range function so +1 on column
+    tags = spir_sheet.row_values(rowx=ftc[0], start_colx=ftc[1], end_colx=ltc[1] + 1)
+
+    # Create Tag-Spare quantity matrix table ($C$7:~)
+    # Return two level nested list i.e. (row > columns)
+    qty_tbl_rng = _get_cell_range(spir_sheet, fqc[0], fqc[1], lqc[0], lqc[1])
+    qty_tbl = list(map(lambda x: list(map(lambda y: y.value, x)), qty_tbl_rng))
+
+    # Key Algorithm 1
+    # Create tag_table matrix using tag-spare quantity range (qty_tbl) ("C7:~")
+    # Return three level nested list i.e. (table-wrapper > row > columns)
+    tag_tbl = []
+    ctr_row1 = 0
+    while ctr_row1 < number_of_spares:
+        ctr_col1 = 0
+        temp_col_list = []
+        while ctr_col1 < len(tags):
+            if qty_tbl[ctr_row1][ctr_col1] is not None:
+                temp_col_list.append(tags[ctr_col1])
+            else:
+                temp_col_list.append(None)
+
+            ctr_col1 += 1
+        tag_tbl.append(temp_col_list)
+        ctr_row1 += 1
+
+    # Filter None from tables, None.__ne__ to keep other falsify values such as 0, [], {} etc.
+    tag_tbl = list(map(lambda x: list(filter(None.__ne__, x)), tag_tbl))
+    qty_tbl = list(map(lambda x: list(filter(None.__ne__, x)), qty_tbl))
+
+    # Create material number list (simple list)
+    mat_tbl_rng = _get_cell_range(spir_sheet, fmc[0], fmc[1], lmc[0], lmc[1])
+    mat_tbl_rng_value = [cell.value for row in mat_tbl_rng for cell in row]
+    mat_tbl_rng_value = [i.strip().strip("'") if i is not None else i for i in mat_tbl_rng_value]
+
+    # Replace trailng quote at the end of MM number
+    pattern_mm = re.compile(r"[0-9]{15,20}", re.UNICODE)
+    try:
+        # First fill na values in mat_tbl with 999999... and then regex match the material
+        mat_tbl = [i if i is not None else "99999999999999999999" for i in mat_tbl_rng_value]
+        mat_tbl = list(map(lambda x: re.search(pattern_mm, x).group(0), mat_tbl))
+    except (TypeError, AttributeError) as err:
+        mat_tbl = [i if i is not None else "99999999999999999999" for i in mat_tbl_rng_value]
+        if raise_error:
+            print("Error while looking for material number regex match: ", err)
+            # print("Some material number has wrong syntax, needs to be checked")
+
+    # Validate lenght of tag, qty and material lists
+    if len(tag_tbl) == len(mat_tbl) == len(qty_tbl):
+        max_row_ctr = len(tag_tbl)
+    else:
+        # Python 3.6 new feature 'f string' is used
+        raise (IndexError(
+            f"""
+            Inconsistent table!
+            len(tag_tbl)==len(mat_tbl)==len(qty_tbl) condition is not confirmed
+            Length of Tag table: {len(tag_tbl)}
+            Length of Qty table: {len(qty_tbl)}
+            Length of Mat table: {len(mat_tbl)}
+            """
+        ))
+
+    # Key Algorithm 2
+    # Replace any char other than hyphen around tag.
+    # Split tag numbers written in same cell using ':;\n' separator.
+    pattern = re.compile(r'[a-zA-Z0-9-]+', re.UNICODE)
+    tag_tbl = list(map(lambda x: list(map(lambda y: re.findall(pattern, y), x)), tag_tbl))
+
+    # Key Algorithm 3
+    # Zip Tag number with material number and specified quantity as list of tuples of 3
+    zipped_data = []
+    ctr_row2 = 0
+    while ctr_row2 < max_row_ctr:
+        ctr_col2 = 0
+        for i in tag_tbl[ctr_row2]:
+            if len(i) == 1:
+                zipped_data.append(
+                    (i[0], qty_tbl[ctr_row2][ctr_col2], mat_tbl[ctr_row2], spir_name)
+                )
+                ctr_col2 += 1
+            else:
+                for j in i:
+                    zipped_data.append(
+                        (j, qty_tbl[ctr_row2][ctr_col2], mat_tbl[ctr_row2], spir_name)
+                    )
+                ctr_col2 += 1
+        ctr_row2 += 1
+
+
+    output_folder = os.path.join(os.path.split(path_to_spir)[0], "CodifiedFilesResults")
+
+    if os.path.isdir(output_folder):
+        pass
+    else:
+        os.makedirs(output_folder)
+
+    tag_mat_qty_output = os.path.join(output_folder, "Tag_Mat_Qty.csv")
+    spare_detail_output = os.path.join(output_folder, "Sparepart_Details.csv")
+
+    write_lol_to_csv(
+        output_csv=tag_mat_qty_output,
+        headers=['Tag', 'Quantity', 'EniMM', 'SpirNo'], data=zipped_data, seperator=";")
+
+    # Read from Spare part unit type to last column as a dataframe with util function
+    spir_detail_export = _create_mm_table(
+        sheet_obj=spir_sheet, srow=fmc[0], scol=fmc[1] - 19, erow=lmc[0], ecol=lmc[1] + 6
+    )
+    spir_detail_export['SpirNo'] = spir_name
+
+    write_lol_to_csv(
+        output_csv=spare_detail_output,
+        headers=spir_detail_export.columns.tolist(),
+        data=spir_detail_export.values.tolist(), seperator=";")
+
+    os.rename(path_to_spir, os.path.join(output_folder, os.path.split(path_to_spir)[1]))
+
+
+def codify_multiple_spir(tag_cell=(4, 2), mm_cell=(10, 29)):
+    window = Tk()
+    window.wm_withdraw()
+    folder = filedialog.askdirectory(title='Please choose SPIR folder to codify')
+    # filenames is obtained with os.scandir, because subfolder contains output files.
+    fnames = [
+        i.path for i in os.scandir(folder)
+        if os.path.splitext(i.path)[1].lower() in ['.xls', '.xlsx', '.xlsm']
+    ]
+
+    if os.path.isfile(os.path.join(folder, '__Quality Report for Updated SPIR(s)__.xlsx')):
+        pass
+    else:
+        # quality_assurance_check(folder)
+        messagebox.showinfo(
+            title="SPIR Quality Assurance",
+            message="Consider checking SPIR qualities with the aid of quality_assurance_check()",
+            detail=""
+        )
+
+    for i in fnames:
+        try:
+            codify_spir(path_to_spir=i, tag_cell=tag_cell, mm_cell=mm_cell, raise_error=False)
+        except Exception as err:
+            spir_errors = os.path.join(folder, 'SPIR_ERRORs.csv')
+            with open(spir_errors, "a", encoding='utf-8') as report:
+                report.write(os.path.split(i)[1]+";"+str(err) + "\n")
+            continue
+
+    messagebox.showinfo(
+        title="Complete",
+        message="Done! For possible errors check 'Quality Report' and 'Unstructured_SPIRs.txt'",
+        detail=""
+    )
+
+
+def _find_mm_column(sheet_obj, pattern=r"^[0-9]{15,20}", first_mm=(None, None)):
+    """
+    Find MM columns with the help of regex pattern
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+    
+    Keyword Arguments:
+        pattern {regexp} -- (default: {r"^[0-9]{15,20}"})
+        first_mm {tuple} -- Fallback value for first material number cell in case of unsuccessful
+                            parsing (default: {None})
+    
+    Returns:
+        tuple -- Tuple of cell cordinates
+    """
+    row_col_list = []
+    for r in range(0, sheet_obj.nrows):
+        for c in range(0, sheet_obj.ncols):
+            if re.search(pattern, str(sheet_obj.cell_value(r, c))):
+                row_col_list.append((r, c))
+    seen = set()
+    dups = set()
+    for r, c in row_col_list:
+        if c in seen:
+            dups.add(c)
+        seen.add(c)
+    try:
+        column = max(dups)
+        row = min([r for r, c in row_col_list if c == column])
+        return (row, column)
+    except (TypeError, ValueError):
+        print("Issue: MM number can't be fetched by find_mm_column method")
+        return first_mm
+    finally:
+        pass
+
+
+def _create_mm_table(sheet_obj, srow, scol, erow, ecol):
+    """Get MM table, by putting mm number as index.
+    
+    Arguments:
+        sheet_obj {xlrd worksheet object}
+        srow {int} -- Start row for file
+        scol {int} -- Start column for file
+        erow {int} -- End row for file
+        ecol {int} -- End column for file
+    
+    Returns:
+        pandas Dataframe
+    """
+    table_columns = [
+        "SpareUnitCode", "SparePartDescription", "LongText", "DetailDocumentNo",
+        "DetailDocumentItemRef", "Material", "SupplierPartNo", "ManufacturerPartNo",
+        "ManufacturerName", "SupplierRecommCommQty", "EngineeringRecommCommQty", "OrderedCommQty",
+        "SupplierRecommOperationalQty", "EngineeringRecommOperationalQty", "OrderedOperationalQty",
+        "SupplierRecommCapitalQty", "EngineeringRecommCapitalnQty", "OrderedCapitalQty",
+        "MeasureUnit", "EniMM", "AchillesCode", "BatchManagement", "SerialNo", "UnitPriceNOK",
+        "OperatinalSpareDeliveryTimeInMonth", "PreviouslyDelivered"
+    ]
+
+    # Read from Spare part unit type to last column
+    range_for_df = _get_cell_range(
+        sheet_obj, start_row=srow, start_col=scol, end_row=erow, end_col=ecol
+    )
+    # Convert range to xlrd values
+    range_for_df = list(map(lambda x: list(map(lambda y: y.value, x)), range_for_df))
+
+    # Read as Dataframe
+    df = pd.DataFrame(range_for_df, columns=table_columns)
+
+    # Pandas method for extracting regex match from column
+    df['EniMM'] = df['EniMM'].str.extract("([0-9]{15,20})", expand=False)
+    df['EniMM'] = df['EniMM'].fillna('99999999999999999999')
+    return df
+
+
+def quality_assurance_check(path_to_folder=r"./ENI_test_spirs", use_relative_path=True):
+    """Use Utility functions to validate quality of SPIRs.
+    
+    Keyword Arguments:
+        path_to_folder {path} -- Path to SPIR folder (default: {r"./ENI_test_spirs"})
+    """
+    fnames = get_filepaths(path_to_folder, file_type=['.xls', '.xlsx', '.xlsm'])
+    fnames = [i for i in fnames if "Original" not in i]
+    report_list = []
+    for file in fnames:
+        wb = xl.open_workbook(file)
+        try:
+            spir_name = [
+                i for i in wb.sheet_names() if re.match(r"^spir$", i.strip(), re.IGNORECASE)][0]
+            spir_sheet = wb.sheet_by_name(spir_name)
+            spirname = _get_sheet_dimension(spir_sheet)['spirname']
+            max_row_col = _get_sheet_dimension(spir_sheet)['maxrow'], _get_sheet_dimension(spir_sheet)['maxcol']
+            material_row_col = _find_mm_column(spir_sheet)
+        except IndexError:
+            spirname = 'NoSpirSheet'
+            max_row_col = ('NoSpirSheet', 'NoSpirSheet')
+            material_row_col = ('NoSpirSheet', 'NoSpirSheet')
+
+        report_header = [
+            "FileName", "SpirSheet", "LastCellRow", "LastCellCol", "MaterialRow", "MaterialCol",
+            "Link"
+        ]
+        report_list.append(
+            [
+                os.path.split(file)[1], spirname, max_row_col[0], max_row_col[1],
+                material_row_col[0], material_row_col[1], file
+            ]
+        )
+
+    df = pd.DataFrame(data=report_list, columns=report_header)
+    if use_relative_path:
+        df['Link'] = df['Link'].apply(lambda x: os.path.relpath(x, path_to_folder))
+    df['Link'] = df['Link'].apply(convert_to_hyperlink)
+    df.index += 1
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(
+        os.path.join(path_to_folder, '__Quality Report for Updated SPIR(s)__.xlsx'),
+        engine='xlsxwriter')
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='QA for SPIRs')
+    # Get the xlsxwriter workbook and worksheet objects.
+    workbook  = writer.book
+    worksheet = writer.sheets['QA for SPIRs']
+    # Add some cell formats.
+    custom_hyperlink_format = workbook.add_format({
+        'font_color': 'blue',
+        # 'bold':       1,
+        'underline':  1,
+        'font_size':  12,
+    })
+    # Note: It isn't possible to format any cells that already have a format such
+    # as the index or headers or any cells that contain dates or datetimes.
+    # Set the format but not the column width.
+    worksheet.set_column('H:H', None, custom_hyperlink_format)
+    # Close the Pandas Excel writer and output the Excel file.
+    writer.save()
+
+    # Following indented code creates list of string that uses f string with multiple line elegantly
+    # report_list.append(
+    #     f"""
+    # ##### {file[0]}: {file[1].name} #####
+    #         SPIR Name: {spirname}
+    #         Max (Row, Col): {max_row_col}
+    #         MM(row, column): {material_row_col}
+    # """
+    # )
+
+
+# if __name__ == '__main__':
+#     codify_spir(r"C:\Users\SC-2883\Desktop\SPIR ENI\flat_folder\ENINO-4635430-v1-Coding-Updated-EJ301-J-MC-6300_C01-02.XLS")
+    # codify_multiple_spir()
+    # export_file_names(use_relative_path=True)
+    # quality_assurance_check(r"C:/Users/SC-2883/Desktop/flat_spir")
