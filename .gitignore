@@ -34,3 +34,5 @@ nosetests.xml
 # Draft
 draft_utils.py
 
+# ref & test files
+__ref/**

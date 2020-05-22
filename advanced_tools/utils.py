@@ -378,7 +378,13 @@ def get_folder_structure(directory=None, file_type=""):
             for dn in dirnames:
                 d[dn] = {}
         else:
-            based[subd] = [i for i in filenames if i.lower().endswith(file_type) and "$" not in i]
+            if file_type == 'all' or file_type == '':
+                based[subd] = [i for i in filenames if "$" not in i]
+            else:
+                based[subd] = [
+                    i for i in filenames
+                    if os.path.splitext(i)[1].lower() in file_type and "$" not in i
+                ]
     return alld['']
 
 
@@ -599,8 +605,9 @@ def get_hierarchy_as_list(
     else:
         raise (AttributeError("lookup_for keyword argument must be either 'parents' or 'children'"))
 
-    # Extracting initial dataframe as sublevel=1 from df['sap'] with initial taglist.
+    # Extracting initial dataframe as sublevel=0 from df['sap'] with initial taglist.
     df_out = main_df[main_df[tag_column].isin(tag_list)].copy()
+    # assigning column values to empty dataframe with loc #10017
     df_out['Sublevel'] = 0
     tags = df_out[tag_field].tolist()
 
@@ -610,7 +617,8 @@ def get_hierarchy_as_list(
             print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr - 1))
         # Extracting all upto given sublevel starting from the initial taglist
         while ctr <= sub_level:
-            df_temp = main_df[main_df[parent_field].isin(tags)]
+            df_temp = main_df[main_df[parent_field].isin(tags)].copy()
+            # assigning column values to empty dataframe with loc #10017
             df_temp['Sublevel'] = sublevel_direction(ctr)
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
@@ -623,7 +631,7 @@ def get_hierarchy_as_list(
             print("Total number of tags: " + str(len(tags)) + " at level-" + str(ctr - 1))
         # Extracting all the sublevel starting from the initial taglist
         while len(tags) > 0:
-            df_temp = main_df[main_df[parent_field].isin(tags)]
+            df_temp = main_df[main_df[parent_field].isin(tags)].copy()
             df_temp['Sublevel'] = sublevel_direction(ctr)
             df_out = df_out.append(df_temp)
             tags = df_temp[tag_field].tolist()
@@ -725,7 +733,7 @@ def apex_workorders(
                                       tag_column].unique().tolist()
 
         if not sisters['include_children_of_sisters']:
-            stags = hierarchyDF[hierarchyDF[tag_column].isin(sister_tags)]
+            stags = hierarchyDF[hierarchyDF[tag_column].isin(sister_tags)].copy()
             stags['Sublevel'] = 0
         else:
             stags = get_hierarchy_as_list(
@@ -745,10 +753,10 @@ def apex_workorders(
     if len(ttags) > 0:
         ttags.drop_duplicates(inplace=True, keep='first')
     else:
-        ttags = hierarchyDF[hierarchyDF[tag_column].isin(taglist)]
+        ttags = hierarchyDF[hierarchyDF[tag_column].isin(taglist)].copy()
         ttags['Sublevel'] = 0
 
-    wos = lookupDF[lookupDF[tag_column].isin(ttags[tag_column].tolist())]
+    wos = lookupDF[lookupDF[tag_column].isin(ttags[tag_column].tolist())].copy()
 
     tos = wos.merge(
         ttags[['Functional Location', 'Location', 'Sublevel']],
@@ -1073,7 +1081,7 @@ def codify_multiple_spir(tag_cell=(4, 2), mm_cell=(10, 29)):
     # filenames is obtained with os.scandir, because subfolder contains output files.
     fnames = [
         i.path for i in os.scandir(folder)
-        if os.path.splitext(i.path)[1].lower() in ['.xls', '.xlsx', '.xlsm']
+        if os.path.splitext(i.path)[1].lower() in ['.xls', '.xlsx', '.xlsm'] and "$" not in i.path
     ]
 
     if os.path.isfile(os.path.join(folder, '__Quality Report for Updated SPIR(s)__.xlsx')):
